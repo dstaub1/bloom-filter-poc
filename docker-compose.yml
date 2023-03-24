@@ -1,0 +1,62 @@
+version: '2.3'
+services:
+
+  zookeeper:
+    hostname: zookeeper
+    image: wurstmeister/zookeeper:3.4.6
+    expose:
+      - "2181"
+    ports:
+      - "2181:2181"
+
+  kafka:
+    image: wurstmeister/kafka
+    env_file:
+      - kafka/kafka-variables.env
+    depends_on:
+      - zookeeper
+    ports:
+      - '9092:9092'
+      - '8082:8082'
+      - '8083:8083'
+
+  consumer:
+    build:
+      context: consumer
+    restart: unless-stopped
+    environment:
+      kafkaURL: kafka:9092
+      topic: payment.events
+      GroupID: logger-group
+    depends_on:
+      - kafka
+
+  producer:
+    build:
+      context: producer
+    restart: unless-stopped
+    environment:
+      kafkaURL: kafka:9092
+      topic: payment.events
+    depends_on:
+      - kafka
+
+  postgres:
+    image: mdillon/postgis:11-alpine
+    restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      - POSTGRES_USER=$POSTGRES_USER
+      - POSTGRES_PASS=$POSTGRES_PASS
+    volumes:
+    - ./data/postgres:/var/lib/postgresql/data
+    - ./docker/scripts/init.sh:/docker-entrypoint-initdb.d/init.sh
+  
+  redis:
+    image: redis/redis-stack:latest
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    expose:
+      - "6379"
